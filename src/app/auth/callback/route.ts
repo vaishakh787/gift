@@ -5,11 +5,11 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   
-  // Default redirect to dashboard after successful login
   const next = searchParams.get('next') ?? '/dashboard'
 
   if (code) {
-    const supabase = createClient()
+    // Add 'await' here!
+    const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error) {
@@ -17,6 +17,5 @@ export async function GET(request: Request) {
     }
   }
 
-  // If there's an error or no code, send them back to login
   return NextResponse.redirect(`${origin}/login?error=Could not authenticate user`)
 }
