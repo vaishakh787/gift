@@ -1,10 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Move turbo configuration directly out to the root layer
-  turbo: {
-    root: __dirname,
-  },
+  /* Core configuration options belong here */
 };
 
 export default nextConfig;
