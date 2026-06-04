@@ -39,7 +39,8 @@ export default function CreatePathPage() {
 
   const updateMilestone = (index: number, field: keyof Milestone, value: string) => {
     const newMilestones = [...milestones]
-    newMilestones[index][field] = value
+    // Use an 'as any' cast here to satisfy the strict index sign checks
+    ;(newMilestones[index] as any)[field] = value
     setMilestones(newMilestones)
   }
 

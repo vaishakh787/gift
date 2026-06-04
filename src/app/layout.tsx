@@ -23,13 +23,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // Add suppressHydrationWarning right here 👇
     <html 
       lang="en" 
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable}`}
     >
-      <body className="antialiased bg-gray-50 text-gray-900 min-h-screen">
+      {/* Added suppressHydrationWarning to silence extension-induced mismatches directly on the body node */}
+      <body 
+        suppressHydrationWarning 
+        className="antialiased bg-gray-50 text-gray-900 min-h-screen"
+      >
         {children}
       </body>
     </html>
