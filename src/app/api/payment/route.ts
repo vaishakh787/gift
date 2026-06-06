@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server'
 import Razorpay from 'razorpay'
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || '',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || '',
-})
-
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -15,8 +10,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'path_id parameter is required' }, { status: 400 })
     }
 
+    // Lazy instantiate the SDK context safely inside the request runtime block
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+      key_secret: process.env.RAZORPAY_KEY_SECRET || 'secret_placeholder',
+    })
+
     const options = {
-      amount: 50000, // ₹500 INR in Paise
+      amount: 50000, // ₹500 INR in smallest units (Paise)
       currency: 'INR',
       receipt: `rcpt_${path_id.substring(0, 8)}`,
       notes: { path_id },
@@ -24,7 +25,6 @@ export async function POST(request: Request) {
 
     const order = await razorpay.orders.create(options)
     
-    // Return the generated order alongside the key context cleanly
     return NextResponse.json({ 
       success: true, 
       order,
