@@ -36,14 +36,16 @@ export default function PaymentButton({ pathId }: { pathId: string }) {
       if (!data.success) throw new Error('Order creation failed')
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+        // Dynamically receive the Key ID parsed straight from the secure server config
+        key: data.key_id, 
         amount: data.order.amount,
         currency: data.order.currency,
         name: 'GiftPaths',
         description: 'Publish your interactive discovery journey',
         order_id: data.order.id,
         handler: function (response: any) {
-          alert(`Mock transaction complete! Tracker ID: ${response.razorpay_payment_id}`)
+          alert(`Transaction authorized! Reference ID: ${response.razorpay_payment_id}`)
+          window.location.reload()
         },
         theme: { color: '#4f46e5' },
       }
@@ -52,7 +54,7 @@ export default function PaymentButton({ pathId }: { pathId: string }) {
       paymentObject.open()
     } catch (err) {
       console.error(err)
-      alert('Payment setup failed. (API running in draft environment mode)')
+      alert('Payment setup failed. Please confirm your credentials configurations.')
     } finally {
       setLoading(false)
     }

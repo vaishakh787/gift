@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import Razorpay from 'razorpay'
 
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'secret_placeholder',
+  key_id: process.env.RAZORPAY_KEY_ID || '',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || '',
 })
 
 export async function POST(request: Request) {
@@ -16,20 +16,22 @@ export async function POST(request: Request) {
     }
 
     const options = {
-      amount: 50000, // ₹500 INR in smallest units (Paise)
+      amount: 50000, // ₹500 INR in Paise
       currency: 'INR',
       receipt: `rcpt_${path_id.substring(0, 8)}`,
       notes: { path_id },
     }
 
     const order = await razorpay.orders.create(options)
-    return NextResponse.json({ success: true, order })
-  } catch (error) {
-    console.error('Razorpay Order Fallback Object Log:', error)
-    // Return a safe mockup shape so the application frame remains complete
+    
+    // Return the generated order alongside the key context cleanly
     return NextResponse.json({ 
       success: true, 
-      order: { id: 'order_mock_123', amount: 50000, currency: 'INR' } 
+      order,
+      key_id: process.env.RAZORPAY_KEY_ID 
     })
+  } catch (error) {
+    console.error('Razorpay Order Creation failure trace:', error)
+    return NextResponse.json({ success: false, error: 'Failed to initialize order platform' }, { status: 500 })
   }
 }
