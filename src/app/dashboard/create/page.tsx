@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import AudioRecorder from '@/components/ui/AudioRecorder'
 
 type Milestone = {
   id: string;
-  content_type: 'video' | 'book' | 'article' | 'quote';
+  content_type: 'video' | 'book' | 'article' | 'quote' | 'audio';
   url: string;
   title: string;
   description: string;
@@ -28,7 +29,7 @@ export default function CreatePathPage() {
 
   const addMilestone = () => {
     setMilestones([...milestones, {
-      id: Math.random().toString(36).substring(7), // temporary unique ID for React keys
+      id: Math.random().toString(36).substring(7),
       content_type: 'video',
       url: '',
       title: '',
@@ -39,12 +40,10 @@ export default function CreatePathPage() {
 
   const updateMilestone = (index: number, field: keyof Milestone, value: string) => {
     const newMilestones = [...milestones]
-    // Use an 'as any' cast here to satisfy the strict index sign checks
     ;(newMilestones[index] as any)[field] = value
     setMilestones(newMilestones)
   }
 
-  // The Magic Integration: Calling our API Route
   const handleScrape = async (index: number, url: string) => {
     if (!url) return;
     updateMilestone(index, 'title', 'Loading preview...')
@@ -66,7 +65,6 @@ export default function CreatePathPage() {
     }
   }
 
-  // Saving the full Path AND Milestones to Supabase (Day 9 feature)
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -114,7 +112,6 @@ export default function CreatePathPage() {
       if (milestoneError) console.error("Milestone Error:", milestoneError)
     }
 
-    // 3. Redirect back to dashboard
     router.push('/dashboard')
   }
 
@@ -174,26 +171,38 @@ export default function CreatePathPage() {
                   <select 
                     className="border border-gray-300 rounded px-2 py-1 text-sm bg-white text-gray-900"
                     value={milestone.content_type}
-                    onChange={(e) => updateMilestone(index, 'content_type', e.target.value)}
+                    onChange={(e) => updateMilestone(index, 'content_type', e.target.value as any)}
                   >
                     <option value="video">YouTube Video</option>
                     <option value="book">Book Link</option>
                     <option value="article">Article</option>
                     <option value="quote">Personal Quote</option>
+                    <option value="audio">🎙️ Voice Note</option>
                   </select>
                 </div>
                 
-                <input
-                  type="text"
-                  placeholder={milestone.content_type === 'quote' ? "Enter your quote here..." : "Paste a URL here..."}
-                  className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  value={milestone.url}
-                  onChange={(e) => updateMilestone(index, 'url', e.target.value)}
-                  onBlur={(e) => handleScrape(index, e.target.value)} // Triggers API when user clicks away
-                />
+                {/* Conditional Input Selection Block */}
+                {milestone.content_type === 'audio' ? (
+                  <AudioRecorder 
+                    onUploadComplete={(publicUrl) => {
+                      updateMilestone(index, 'url', publicUrl)
+                      updateMilestone(index, 'title', 'Personal Voice Note')
+                      updateMilestone(index, 'description', 'Click play below to hear a custom voice memo recorded especially for you.')
+                    }}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    placeholder={milestone.content_type === 'quote' ? "Enter your quote here..." : "Paste a URL here..."}
+                    className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    value={milestone.url}
+                    onChange={(e) => updateMilestone(index, 'url', e.target.value)}
+                    onBlur={(e) => handleScrape(index, e.target.value)}
+                  />
+                )}
 
                 {/* The Preview Card */}
-                {milestone.title && (
+                {milestone.title && milestone.content_type !== 'audio' && (
                   <div className="flex items-center gap-4 mt-2 p-3 bg-white rounded border border-gray-200">
                     {milestone.image_url && (
                       <img src={milestone.image_url} alt="preview" className="w-20 h-20 object-cover rounded" />
