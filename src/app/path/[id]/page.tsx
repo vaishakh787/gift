@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import Link from 'next/link'
 
 export default async function PathViewer({ 
   params 
@@ -21,15 +22,12 @@ export default async function PathViewer({
 
   // 3. Smart Gatekeeper Layer
   if (pathError || !path) {
-    // If the row is hidden or missing, and they are logged out, show the locked paywall screen
     if (!user) {
       return <LockedPaywallScreen id={id} />
     }
-    // If they ARE logged in but it's still missing, it truly doesn't exist
     return notFound()
   }
 
-  // If the path exists but is unpaid, check if this logged-in user built it
   const isCreator = user && path.creator_id === user.id
   if (!path.is_paid && !isCreator) {
     return <LockedPaywallScreen id={id} />
@@ -46,11 +44,46 @@ export default async function PathViewer({
     console.error("Error fetching milestones:", milestonesError)
   }
 
+  // Next.js 16 Server Action to safely delete path records right from the component
+  async function deletePath() {
+    'use server'
+    const client = await createClient()
+    
+    // Explicitly delete dependent milestones first to ensure integrity
+    await client.from('milestones').delete().eq('path_id', id)
+    await client.from('paths').delete().eq('id', id)
+    
+    redirect('/dashboard')
+  }
+
   return (
     <div className="min-h-screen bg-zinc-50 font-sans pb-32">
+      {/* Top Navigation & Action Row */}
+      <div className="w-full bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-xs">
+        <Link 
+          href="/dashboard"
+          className="inline-flex items-center gap-2 text-sm font-bold text-gray-600 hover:text-indigo-600 transition-colors"
+        >
+          ← Back to Dashboard
+        </Link>
+
+        {isCreator && (
+          <div className="flex items-center gap-3">
+            <form action={deletePath} className="m-0">
+              <button
+                type="submit"
+                className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors cursor-pointer"
+              >
+                Delete Path
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+
       {/* Admin Draft Banner Notice */}
       {!path.is_paid && isCreator && (
-        <div className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-center py-3 px-4 text-sm font-bold tracking-wide shadow-inner flex items-center justify-center gap-2 sticky top-0 z-50">
+        <div className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white text-center py-3 px-4 text-sm font-bold tracking-wide shadow-inner flex items-center justify-center gap-2">
           <span>⚠️ Draft Mode: This path is unpaid and invisible to the public. Only you can see this preview.</span>
         </div>
       )}
@@ -200,6 +233,7 @@ function TimelineCard({ milestone }: { milestone: any }) {
         )
       )}
       
+      {/* Fixed: Explicitly applied high contrast text styling to header options */}
       <h3 className="text-xl font-bold text-gray-900 mb-2 leading-tight">
         {milestone.title || 'External Link'}
       </h3>

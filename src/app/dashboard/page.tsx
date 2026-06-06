@@ -32,11 +32,18 @@ export default async function DashboardPage() {
             GiftPaths.
           </div>
           
-          {/* User Controls and Creation Trigger */}
+          {/* Enhanced User Controls & Account Profile Container */}
           <div className="flex items-center gap-6">
-            <span className="hidden sm:inline text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
-              Logged in: <span className="text-gray-700 font-bold">{user.email}</span>
-            </span>
+            <div className="hidden sm:flex items-center gap-2.5 bg-gray-50 border border-gray-100 px-3.5 py-1.5 rounded-full shadow-inner">
+              {/* Profile Avatar Bubble using Email Initial */}
+              <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center uppercase select-none">
+                {user.email ? user.email[0] : 'U'}
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 leading-none mb-0.5">Account Profile</span>
+                <span className="text-xs font-bold text-gray-700 leading-none">{user.email}</span>
+              </div>
+            </div>
             
             {/* Native Form hitting our secure Sign Out API */}
             <form action="/api/auth/signout" method="POST" className="m-0">
@@ -87,7 +94,7 @@ export default async function DashboardPage() {
                   )}
                 </div>
 
-                {/* The Updated Action Footer Panel */}
+                {/* Action Footer Panel */}
                 <div className="flex gap-4 mt-4 pt-4 border-t border-gray-100">
                   <Link
                     href={`/path/${path.id}`}

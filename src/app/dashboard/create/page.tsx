@@ -120,6 +120,17 @@ export default function CreatePathPage() {
 
   return (
     <div className="max-w-3xl mx-auto mt-10 p-6">
+      {/* Navigation Escape Link Block */}
+      <div className="mb-6">
+        <button 
+          type="button"
+          onClick={() => router.push('/dashboard')}
+          className="text-sm font-bold text-gray-500 hover:text-indigo-600 transition-colors cursor-pointer"
+        >
+          ← Cancel and Go Back
+        </button>
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Curate a Gift Path</h1>
         
@@ -131,7 +142,7 @@ export default function CreatePathPage() {
               type="text"
               required
               placeholder="Who is this for? (e.g. Aarush)"
-              className="w-full rounded-md border border-gray-300 px-4 py-2"
+              className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               value={gifteeName}
               onChange={(e) => setGifteeName(e.target.value)}
             />
@@ -139,13 +150,13 @@ export default function CreatePathPage() {
               type="text"
               required
               placeholder="Path Title (e.g. Your Journey into Tech)"
-              className="w-full rounded-md border border-gray-300 px-4 py-2"
+              className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
             <textarea
               placeholder="Write a personal welcome message..."
-              className="w-full rounded-md border border-gray-300 px-4 py-2"
+              className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               rows={3}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -161,7 +172,7 @@ export default function CreatePathPage() {
                 <div className="flex justify-between items-center">
                   <span className="font-medium text-indigo-800">Milestone {index + 1}</span>
                   <select 
-                    className="border border-gray-300 rounded px-2 py-1 text-sm bg-white"
+                    className="border border-gray-300 rounded px-2 py-1 text-sm bg-white text-gray-900"
                     value={milestone.content_type}
                     onChange={(e) => updateMilestone(index, 'content_type', e.target.value)}
                   >
@@ -175,7 +186,7 @@ export default function CreatePathPage() {
                 <input
                   type="text"
                   placeholder={milestone.content_type === 'quote' ? "Enter your quote here..." : "Paste a URL here..."}
-                  className="w-full rounded-md border border-gray-300 px-4 py-2"
+                  className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   value={milestone.url}
                   onChange={(e) => updateMilestone(index, 'url', e.target.value)}
                   onBlur={(e) => handleScrape(index, e.target.value)} // Triggers API when user clicks away
@@ -188,7 +199,7 @@ export default function CreatePathPage() {
                       <img src={milestone.image_url} alt="preview" className="w-20 h-20 object-cover rounded" />
                     )}
                     <div className="flex flex-col">
-                      <span className="font-semibold text-sm line-clamp-1">{milestone.title}</span>
+                      <span className="font-semibold text-sm line-clamp-1 text-gray-900">{milestone.title}</span>
                       <span className="text-xs text-gray-500 line-clamp-2">{milestone.description}</span>
                     </div>
                   </div>
@@ -199,7 +210,7 @@ export default function CreatePathPage() {
             <button
               type="button"
               onClick={addMilestone}
-              className="w-full py-3 border-2 border-dashed border-gray-300 text-gray-600 font-medium rounded-lg hover:border-indigo-500 hover:text-indigo-600 transition-colors"
+              className="w-full py-3 border-2 border-dashed border-gray-300 text-gray-600 font-medium rounded-lg hover:border-indigo-500 hover:text-indigo-600 transition-colors cursor-pointer"
             >
               + Add a Milestone
             </button>
@@ -208,7 +219,7 @@ export default function CreatePathPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors cursor-pointer"
           >
             {loading ? 'Saving Path...' : 'Save & Continue'}
           </button>
