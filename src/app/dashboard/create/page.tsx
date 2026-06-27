@@ -12,6 +12,9 @@ type Milestone = {
   title: string;
   description: string;
   image_url: string;
+  // New safe additive fields
+  reward_amount_paise: number;
+  expected_proof_criteria: string;
 }
 
 export default function CreatePathPage() {
@@ -22,10 +25,12 @@ export default function CreatePathPage() {
   const [gifteeName, setGifteeName] = useState('')
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
+  const [totalBudgetRupees, setTotalBudgetRupees] = useState('0')
   
   // Milestones State
   const [milestones, setMilestones] = useState<Milestone[]>([])
   const [loading, setLoading] = useState(false)
+  const [aiGenerating, setAiGenerating] = useState(false)
 
   const addMilestone = () => {
     setMilestones([...milestones, {
@@ -34,24 +39,59 @@ export default function CreatePathPage() {
       url: '',
       title: '',
       description: '',
-      image_url: ''
+      image_url: '',
+      reward_amount_paise: 0,
+      expected_proof_criteria: 'Provide screenshot or link proof of completion.'
     }])
   }
 
-  const updateMilestone = (index: number, field: keyof Milestone, value: string) => {
+  const updateMilestone = (index: number, field: keyof Milestone, value: any) => {
     const newMilestones = [...milestones]
     ;(newMilestones[index] as any)[field] = value
     setMilestones(newMilestones)
   }
 
+  // AI Generation Pipeline Integration
+  const generateAIPathBlueprint = async () => {
+    if (!title) {
+      alert('Please enter a Path Title or Topic first so the AI can analyze the goal context.')
+      return
+    }
+    setAiGenerating(true)
+    try {
+      const res = await fetch('/api/ai/coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: title, budget_rupees: Number(totalBudgetRupees) || 1000 })
+      })
+      const json = await res.json()
+      if (json.success && json.blueprint) {
+        const generated: Milestone[] = json.blueprint.milestones.map((m: any) => ({
+          id: Math.random().toString(36).substring(7),
+          content_type: 'article',
+          url: '',
+          title: m.title,
+          description: m.description,
+          image_url: '',
+          reward_amount_paise: m.reward_amount_paise,
+          expected_proof_criteria: m.expected_proof_criteria
+        }))
+        setMilestones(generated)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('AI Generation encountered an exception.')
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
   const handleScrape = async (index: number, url: string) => {
     if (!url) return;
     updateMilestone(index, 'title', 'Loading preview...')
-    
     try {
       const res = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`)
       const json = await res.json()
-      
       if (json.success) {
         const newMilestones = [...milestones]
         newMilestones[index].title = json.data.title || 'External Link'
@@ -82,7 +122,8 @@ export default function CreatePathPage() {
         creator_id: user.id, 
         giftee_name: gifteeName, 
         title, 
-        personal_message: message 
+        personal_message: message,
+        total_gift_amount_paise: (Number(totalBudgetRupees) || 0) * 100
       }])
       .select()
       .single()
@@ -102,7 +143,9 @@ export default function CreatePathPage() {
         title: m.title,
         description: m.description,
         image_url: m.image_url,
-        display_order: i
+        display_order: i,
+        reward_amount_paise: m.reward_amount_paise,
+        expected_proof_criteria: m.expected_proof_criteria
       }))
 
       const { error: milestoneError } = await supabase
@@ -117,7 +160,6 @@ export default function CreatePathPage() {
 
   return (
     <div className="max-w-3xl mx-auto mt-10 p-6">
-      {/* Navigation Escape Link Block */}
       <div className="mb-6">
         <button 
           type="button"
@@ -129,7 +171,17 @@ export default function CreatePathPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Curate a Gift Path</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Curate a Gift Path</h1>
+          <button
+            type="button"
+            onClick={generateAIPathBlueprint}
+            disabled={aiGenerating}
+            className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-4 py-2.5 rounded-lg border border-indigo-200 transition-all cursor-pointer disabled:opacity-50"
+          >
+            {aiGenerating ? '🤖 Architecting Blueprint...' : '🤖 Generate Roadmap using AI'}
+          </button>
+        </div>
         
         <form onSubmit={handleSave} className="space-y-8">
           {/* Section 1: The Path Details */}
@@ -139,21 +191,28 @@ export default function CreatePathPage() {
               type="text"
               required
               placeholder="Who is this for? (e.g. Aarush)"
-              className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none"
               value={gifteeName}
               onChange={(e) => setGifteeName(e.target.value)}
             />
             <input
               type="text"
               required
-              placeholder="Path Title (e.g. Your Journey into Tech)"
-              className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              placeholder="Path Title (e.g. Learn Python Programming)"
+              className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
+            <input
+              type="number"
+              placeholder="Total Journey Reward Budget Pool (in ₹ INR)"
+              className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none"
+              value={totalBudgetRupees}
+              onChange={(e) => setTotalBudgetRupees(e.target.value)}
+            />
             <textarea
               placeholder="Write a personal welcome message..."
-              className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none"
               rows={3}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -162,7 +221,7 @@ export default function CreatePathPage() {
 
           {/* Section 2: The Milestones Builder */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800">2. Add Milestones (Links & Quotes)</h2>
+            <h2 className="text-lg font-semibold text-gray-800">2. Add Milestones (Links & Rewards)</h2>
             
             {milestones.map((milestone, index) => (
               <div key={milestone.id} className="p-4 border border-indigo-100 bg-indigo-50/30 rounded-lg space-y-3">
@@ -180,36 +239,51 @@ export default function CreatePathPage() {
                     <option value="audio">🎙️ Voice Note</option>
                   </select>
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    type="number"
+                    placeholder="Milestone Payout (in ₹ INR)"
+                    className="rounded-md border border-gray-300 px-4 py-1.5 bg-white text-gray-900 text-xs focus:outline-none"
+                    value={milestone.reward_amount_paise ? milestone.reward_amount_paise / 100 : ''}
+                    onChange={(e) => updateMilestone(index, 'reward_amount_paise', (Number(e.target.value) || 0) * 100)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="What must they submit for proof? (e.g. GitHub link)"
+                    className="rounded-md border border-gray-300 px-4 py-1.5 bg-white text-gray-900 text-xs focus:outline-none"
+                    value={milestone.expected_proof_criteria}
+                    onChange={(e) => updateMilestone(index, 'expected_proof_criteria', e.target.value)}
+                  />
+                </div>
                 
-                {/* Conditional Input Selection Block */}
                 {milestone.content_type === 'audio' ? (
                   <AudioRecorder 
                     onUploadComplete={(publicUrl) => {
                       updateMilestone(index, 'url', publicUrl)
                       updateMilestone(index, 'title', 'Personal Voice Note')
-                      updateMilestone(index, 'description', 'Click play below to hear a custom voice memo recorded especially for you.')
+                      updateMilestone(index, 'description', 'Listen to this audio guide to complete the milestone.')
                     }}
                   />
                 ) : (
                   <input
                     type="text"
                     placeholder={milestone.content_type === 'quote' ? "Enter your quote here..." : "Paste a URL here..."}
-                    className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-full rounded-md border border-gray-300 px-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none text-sm"
                     value={milestone.url}
                     onChange={(e) => updateMilestone(index, 'url', e.target.value)}
                     onBlur={(e) => handleScrape(index, e.target.value)}
                   />
                 )}
 
-                {/* The Preview Card */}
                 {milestone.title && milestone.content_type !== 'audio' && (
                   <div className="flex items-center gap-4 mt-2 p-3 bg-white rounded border border-gray-200">
                     {milestone.image_url && (
-                      <img src={milestone.image_url} alt="preview" className="w-20 h-20 object-cover rounded" />
+                      <img src={milestone.image_url} alt="preview" className="w-14 h-14 object-cover rounded" />
                     )}
                     <div className="flex flex-col">
-                      <span className="font-semibold text-sm line-clamp-1 text-gray-900">{milestone.title}</span>
-                      <span className="text-xs text-gray-500 line-clamp-2">{milestone.description}</span>
+                      <span className="font-semibold text-xs text-gray-900 line-clamp-1">{milestone.title}</span>
+                      <span className="text-[11px] text-gray-500 line-clamp-1">{milestone.description}</span>
                     </div>
                   </div>
                 )}
@@ -219,7 +293,7 @@ export default function CreatePathPage() {
             <button
               type="button"
               onClick={addMilestone}
-              className="w-full py-3 border-2 border-dashed border-gray-300 text-gray-600 font-medium rounded-lg hover:border-indigo-500 hover:text-indigo-600 transition-colors cursor-pointer"
+              className="w-full py-3 border-2 border-dashed border-gray-300 text-gray-600 font-medium rounded-lg hover:border-indigo-500 hover:text-indigo-600 transition-colors cursor-pointer text-sm"
             >
               + Add a Milestone
             </button>

@@ -1,45 +1,28 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
+// Find: if (payload.event === 'payment.captured') inside src/app/api/webhook/razorpay/route.ts
+// Replace that processing block cleanly with this entry engine:
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder'
-)
+if (payload.event === 'payment.captured') {
+  const pathId = payload.payload.payment.entity.notes?.path_id
+  const baseBudgetPaise = Number(payload.payload.payment.entity.notes?.base_budget) || 0
 
-export async function POST(request: Request) {
-  try {
-    const rawBody = await request.text()
-    const signature = request.headers.get('x-razorpay-signature')
+  if (pathId) {
+    // 1. Mark path execution layout state to active public status
+    await supabaseAdmin
+      .from('paths')
+      .update({ is_paid: true })
+      .eq('id', pathId)
 
-    if (!signature) {
-      return NextResponse.json({ error: 'Missing validation signature' }, { status: 400 })
+    -- 2. Log entry mapping fund insertion directly into system escrow pool structures
+    if (baseBudgetPaise > 0) {
+      await supabaseAdmin
+        .from('financial_ledgers')
+        .insert([{
+          path_id: pathId,
+          source_account: 'gifter_wallet',
+          destination_account: 'system_escrow_holding',
+          transaction_type: 'escrow_funding',
+          amount_paise: baseBudgetPaise
+        }])
     }
-
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET || 'secret')
-      .update(rawBody)
-      .digest('hex')
-
-    if (expectedSignature !== signature) {
-      return NextResponse.json({ error: 'Cryptographic hash validation failed' }, { status: 401 })
-    }
-
-    const payload = JSON.parse(rawBody)
-
-    if (payload.event === 'payment.captured') {
-      const pathId = payload.payload.payment.entity.notes?.path_id
-      if (pathId) {
-        await supabaseAdmin
-          .from('paths')
-          .update({ is_paid: true })
-          .eq('id', pathId)
-      }
-    }
-
-    return NextResponse.json({ status: 'ok' })
-  } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Internal operation fallback' }, { status: 500 })
   }
 }
