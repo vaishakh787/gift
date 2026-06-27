@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, use } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import AudioRecorder from '@/components/ui/AudioRecorder'
 
 type Milestone = {
@@ -12,13 +12,14 @@ type Milestone = {
   title: string;
   description: string;
   image_url: string;
-  // New safe additive fields
   reward_amount_paise: number;
   expected_proof_criteria: string;
 }
 
 export default function CreatePathPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const editPathId = searchParams.get('edit') // Checks if we are in Edit Mode
   const supabase = createClient()
   
   // Path State
@@ -30,11 +31,62 @@ export default function CreatePathPage() {
   // Milestones State
   const [milestones, setMilestones] = useState<Milestone[]>([])
   const [loading, setLoading] = useState(false)
+  const [fetchingData, setFetchingData] = useState(false)
   const [aiGenerating, setAiGenerating] = useState(false)
+
+  // Hydrate form if we are in Edit Mode
+  useEffect(() => {
+    if (!editPathId) return
+
+    async function loadPathForEditing() {
+      setFetchingData(true)
+      
+      // 1. Fetch Path Details
+      const { data: path, error: pathError } = await supabase
+        .from('paths')
+        .select('*')
+        .eq('id', editPathId)
+        .single()
+
+      if (pathError || !path) {
+        alert('Could not find the requested path for editing.')
+        router.push('/dashboard')
+        return
+      }
+
+      setGifteeName(path.giftee_name)
+      setTitle(path.title)
+      setMessage(path.personal_message || '')
+      setTotalBudgetRupees(String((path.total_gift_amount_paise || 0) / 100))
+
+      // 2. Fetch Existing Milestones
+      const { data: milestonesData } = await supabase
+        .from('milestones')
+        .select('*')
+        .eq('path_id', editPathId)
+        .order('display_order', { ascending: true })
+
+      if (milestonesData) {
+        setMilestones(milestonesData.map((m: any) => ({
+          id: m.id, // Keeps real DB UUID intact for upserting
+          content_type: m.content_type,
+          url: m.url || '',
+          title: m.title || '',
+          description: m.description || '',
+          image_url: m.image_url || '',
+          reward_amount_paise: m.reward_amount_paise || 0,
+          expected_proof_criteria: m.expected_proof_criteria || ''
+        })))
+      }
+      setFetchingData(false)
+    }
+
+    loadPathForEditing()
+  }, [editPathId, supabase, router])
 
   const addMilestone = () => {
     setMilestones([...milestones, {
-      id: Math.random().toString(36).substring(7),
+      id: Math.random().toString(36).substring(7), // Temp ID for new items
       content_type: 'video',
       url: '',
       title: '',
@@ -45,13 +97,17 @@ export default function CreatePathPage() {
     }])
   }
 
+  const removeMilestone = (index: number) => {
+    const updated = milestones.filter((_, i) => i !== index)
+    setMilestones(updated)
+  }
+
   const updateMilestone = (index: number, field: keyof Milestone, value: any) => {
     const newMilestones = [...milestones]
     ;(newMilestones[index] as any)[field] = value
     setMilestones(newMilestones)
   }
 
-  // AI Generation Pipeline Integration
   const generateAIPathBlueprint = async () => {
     if (!title) {
       alert('Please enter a Path Title or Topic first so the AI can analyze the goal context.')
@@ -80,7 +136,7 @@ export default function CreatePathPage() {
       }
     } catch (err) {
       console.error(err)
-      alert('AI Generation encountered an exception.')
+      alert('AI Generation encountered an error.')
     } finally {
       setAiGenerating(false)
     }
@@ -115,29 +171,54 @@ export default function CreatePathPage() {
       return
     }
 
-    // 1. Insert the Path
-    const { data: pathData, error: pathError } = await supabase
-      .from('paths')
-      .insert([{ 
-        creator_id: user.id, 
-        giftee_name: gifteeName, 
-        title, 
-        personal_message: message,
-        total_gift_amount_paise: (Number(totalBudgetRupees) || 0) * 100
-      }])
-      .select()
-      .single()
+    let pathId = editPathId
 
-    if (pathError) {
-      console.error("Path Error:", pathError)
-      setLoading(false)
-      return
+    // 1. Insert or Update the Path details
+    if (editPathId) {
+      const { error: pathUpdateError } = await supabase
+        .from('paths')
+        .update({ 
+          giftee_name: gifteeName, 
+          title, 
+          personal_message: message,
+          total_gift_amount_paise: (Number(totalBudgetRupees) || 0) * 100
+        })
+        .eq('id', editPathId)
+
+      if (pathUpdateError) {
+        console.error(pathUpdateError)
+        setLoading(false)
+        return
+      }
+    } else {
+      const { data: pathData, error: pathError } = await supabase
+        .from('paths')
+        .insert([{ 
+          creator_id: user.id, 
+          giftee_name: gifteeName, 
+          title, 
+          personal_message: message,
+          total_gift_amount_paise: (Number(totalBudgetRupees) || 0) * 100
+        }])
+        .select()
+        .single()
+
+      if (pathError) {
+        console.error(pathError)
+        setLoading(false)
+        return
+      }
+      pathId = pathData.id
     }
 
-    // 2. Insert the Milestones linked to the new Path
-    if (milestones.length > 0) {
+    // 2. Clean clear and replace milestones to maintain sequence index integrity
+    if (editPathId) {
+      await supabase.from('milestones').delete().eq('path_id', editPathId)
+    }
+
+    if (milestones.length > 0 && pathId) {
       const milestonesToInsert = milestones.map((m, i) => ({
-        path_id: pathData.id,
+        path_id: pathId,
         content_type: m.content_type,
         url: m.url,
         title: m.title,
@@ -158,6 +239,10 @@ export default function CreatePathPage() {
     router.push('/dashboard')
   }
 
+  if (fetchingData) {
+    return <div className="p-8 text-center text-sm font-bold text-gray-400 animate-pulse">Retrieving roadmap details...</div>
+  }
+
   return (
     <div className="max-w-3xl mx-auto mt-10 p-6">
       <div className="mb-6">
@@ -172,15 +257,17 @@ export default function CreatePathPage() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Curate a Gift Path</h1>
-          <button
-            type="button"
-            onClick={generateAIPathBlueprint}
-            disabled={aiGenerating}
-            className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-4 py-2.5 rounded-lg border border-indigo-200 transition-all cursor-pointer disabled:opacity-50"
-          >
-            {aiGenerating ? '🤖 Architecting Blueprint...' : '🤖 Generate Roadmap using AI'}
-          </button>
+          <h1 className="text-3xl font-bold text-gray-900">{editPathId ? 'Edit Discovery Path' : 'Curate a Gift Path'}</h1>
+          {!editPathId && (
+            <button
+              type="button"
+              onClick={generateAIPathBlueprint}
+              disabled={aiGenerating}
+              className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-4 py-2.5 rounded-lg border border-indigo-200 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {aiGenerating ? '🤖 Architecting Blueprint...' : '🤖 Generate Roadmap using AI'}
+            </button>
+          )}
         </div>
         
         <form onSubmit={handleSave} className="space-y-8">
@@ -221,23 +308,33 @@ export default function CreatePathPage() {
 
           {/* Section 2: The Milestones Builder */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800">2. Add Milestones (Links & Rewards)</h2>
+            <h2 className="text-lg font-semibold text-gray-800">2. Edit Milestones (Links & Rewards)</h2>
             
             {milestones.map((milestone, index) => (
-              <div key={milestone.id} className="p-4 border border-indigo-100 bg-indigo-50/30 rounded-lg space-y-3">
+              <div key={milestone.id} className="p-4 border border-indigo-100 bg-indigo-50/30 rounded-lg space-y-3 relative group">
                 <div className="flex justify-between items-center">
                   <span className="font-medium text-indigo-800">Milestone {index + 1}</span>
-                  <select 
-                    className="border border-gray-300 rounded px-2 py-1 text-sm bg-white text-gray-900"
-                    value={milestone.content_type}
-                    onChange={(e) => updateMilestone(index, 'content_type', e.target.value as any)}
-                  >
-                    <option value="video">YouTube Video</option>
-                    <option value="book">Book Link</option>
-                    <option value="article">Article</option>
-                    <option value="quote">Personal Quote</option>
-                    <option value="audio">🎙️ Voice Note</option>
-                  </select>
+                  <div className="flex items-center gap-3">
+                    <select 
+                      className="border border-gray-300 rounded px-2 py-1 text-sm bg-white text-gray-900"
+                      value={milestone.content_type}
+                      onChange={(e) => updateMilestone(index, 'content_type', e.target.value as any)}
+                    >
+                      <option value="video">YouTube Video</option>
+                      <option value="book">Book Link</option>
+                      <option value="article">Article</option>
+                      <option value="quote">Personal Quote</option>
+                      <option value="audio">🎙️ Voice Note</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => removeMilestone(index)}
+                      className="text-xs font-bold text-red-500 hover:text-red-700 cursor-pointer"
+                      title="Remove Milestone"
+                    >
+                      ✕ Remove
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -304,7 +401,7 @@ export default function CreatePathPage() {
             disabled={loading}
             className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors cursor-pointer"
           >
-            {loading ? 'Saving Path...' : 'Save & Continue'}
+            {loading ? 'Saving Changes...' : editPathId ? 'Update Discovery Path' : 'Save & Continue'}
           </button>
         </form>
       </div>
